@@ -20,17 +20,28 @@ parser.add_argument('--trainset',type=str,default='its_train')
 parser.add_argument('--testset',type=str,default='its_test')
 parser.add_argument('--net',type=str,default='ffa')
 parser.add_argument('--gps',type=int,default=3,help='residual_groups')
-parser.add_argument('--blocks',type=int,default=20,help='residual_blocks')
+parser.add_argument('--blocks',type=int,default=19,help='residual_blocks')
 parser.add_argument('--bs',type=int,default=16,help='batch size')
 parser.add_argument('--crop',action='store_true')
 parser.add_argument('--crop_size',type=int,default=240,help='Takes effect when using --crop ')
 parser.add_argument('--no_lr_sche',action='store_true',help='no lr cos schedule')
 parser.add_argument('--perloss',action='store_true',help='perceptual loss')
+parser.add_argument('--data_dir',type=str,default='/data2/hyz/FFA-Nettest/dataset',
+                    help='Dataset root for rs_train/rs_test')
+parser.add_argument('--pair_mode',type=str,default='same_name',choices=['same_name','sots_id'],
+                    help='same_name: hazy/GT same filename; sots_id: 1400_1.png -> 1400.png')
+parser.add_argument('--pretrain',type=str,default='',
+                    help='Fine-tune from checkpoint, e.g. ./trained_models/ots_train_ffa_3_19.pk')
 
 opt=parser.parse_args()
 opt.device='cuda' if torch.cuda.is_available() else 'cpu'
 model_name=opt.trainset+'_'+opt.net.split('.')[0]+'_'+str(opt.gps)+'_'+str(opt.blocks)
-opt.model_dir=opt.model_dir+model_name+'.pk'
+if opt.model_dir.endswith('.pk'):
+    pass
+elif opt.model_dir.endswith('/') or opt.model_dir.endswith('\\'):
+    opt.model_dir=opt.model_dir+model_name+'.pk'
+else:
+    opt.model_dir=opt.model_dir+model_name+'.pk'
 log_dir='logs/'+model_name
 
 print(opt)
