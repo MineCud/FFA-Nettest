@@ -1,0 +1,8 @@
+services:
+  ffa-eval:
+    build: .
+    image: ffa-nettest:latest
+    working_dir: /workspace/FFA-Nettest/net
+    volumes:
+      - /data2/hyz/FFA-Nettest:/workspace/FFA-Nettest
+    gpus: all
