@@ -205,24 +205,51 @@ else:
     OTS_train_loader = OTS_test_loader = None
     print('[data] RESIDE not found, its/ots loaders disabled')
 
-# Remote sensing / custom paired data
-rs_train_root = resolve_split_root(data_dir, 'train')
-rs_val_root = resolve_val_root(data_dir)
+# Remote sensing / custom paired data (optional)
+try:
+    rs_train_root = resolve_split_root(data_dir, 'train')
+    rs_val_root = resolve_val_root(data_dir)
+    RS_train_loader = DataLoader(
+        dataset=RESIDE_Dataset(
+            rs_train_root, train=True, size=crop_size,
+            pair_mode=opt.pair_mode,
+        ),
+        batch_size=BS, shuffle=True,
+    )
+    RS_test_loader = DataLoader(
+        dataset=RESIDE_Dataset(
+            rs_val_root, train=False, size='whole img',
+            pair_mode=opt.pair_mode,
+        ),
+        batch_size=1, shuffle=False,
+    )
+except FileNotFoundError as e:
+    print(f'[data] rs_train/rs_test not found: {e}')
+    RS_train_loader = RS_test_loader = None
 
-RS_train_loader = DataLoader(
-    dataset=RESIDE_Dataset(
-        rs_train_root, train=True, size=crop_size,
-        pair_mode=opt.pair_mode,
-    ),
-    batch_size=BS, shuffle=True,
-)
-RS_test_loader = DataLoader(
-    dataset=RESIDE_Dataset(
-        rs_val_root, train=False, size='whole img',
-        pair_mode=opt.pair_mode,
-    ),
-    batch_size=1, shuffle=False,
-)
+# RRSHID (thin/moderate/thick = TN/M/TK)
+try:
+    from rrshid_data import build_rrshid_loaders
+    _rrshid = build_rrshid_loaders(
+        data_dir,
+        val_ratio=opt.rrshid_val_ratio,
+        crop_size=opt.crop_size if opt.crop else 240,
+        batch_size=BS,
+        crop=opt.crop,
+    )
+    RRSHID_train_loader = _rrshid['rrshid_train']
+    RRSHID_test_loader = _rrshid['rrshid_test']
+    RRSHID_tn_test_loader = _rrshid['rrshid_tn_test']
+    RRSHID_m_test_loader = _rrshid['rrshid_m_test']
+    RRSHID_tk_test_loader = _rrshid['rrshid_tk_test']
+    RRSHID_tn_train_loader = _rrshid['rrshid_tn_train']
+    RRSHID_m_train_loader = _rrshid['rrshid_m_train']
+    RRSHID_tk_train_loader = _rrshid['rrshid_tk_train']
+except FileNotFoundError as e:
+    print(f'[data] RRSHID not found: {e}')
+    RRSHID_train_loader = RRSHID_test_loader = None
+    RRSHID_tn_test_loader = RRSHID_m_test_loader = RRSHID_tk_test_loader = None
+    RRSHID_tn_train_loader = RRSHID_m_train_loader = RRSHID_tk_train_loader = None
 
 if __name__ == '__main__':
     print('RS train pairs:', len(RS_train_loader.dataset))

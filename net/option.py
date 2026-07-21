@@ -32,6 +32,8 @@ parser.add_argument('--pair_mode',type=str,default='same_name',choices=['same_na
                     help='same_name: hazy/GT same filename; sots_id: 1400_1.png -> 1400.png')
 parser.add_argument('--pretrain',type=str,default='',
                     help='Fine-tune from checkpoint, e.g. ./trained_models/ots_train_ffa_3_19.pk')
+parser.add_argument('--rrshid_val_ratio',type=float,default=0.1,
+                    help='Validation ratio for RRSHID train/val split (default 0.1)')
 
 opt=parser.parse_args()
 opt.device='cuda' if torch.cuda.is_available() else 'cpu'

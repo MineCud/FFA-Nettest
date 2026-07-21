@@ -160,8 +160,12 @@ parser.add_argument('--save_dir', type=str, default='',
                     help='Save dehazed predictions to this folder')
 parser.add_argument('--task', type=str, default='ots', choices=['its', 'ots'],
                     help='Weight to load: its (indoor) or ots (outdoor, recommended for RS)')
-parser.add_argument('--data_dir', type=str, default='',
-                    help='SOTS mode only: path containing RESIDE/')
+parser.add_argument('--rrshid', action='store_true',
+                    help='Evaluate on RRSHID (reports PSNR per density: TN/M/TK)')
+parser.add_argument('--density', type=str, default='all',
+                    help='RRSHID density: all, tn(浅), m(中), tk(浓)')
+parser.add_argument('--data_dir', type=str, default='/data2/hyz/FFA-Nettest/dataset',
+                    help='Dataset root (SOTS/RRSHID/custom)')
 parser.add_argument('--gps', type=int, default=3)
 parser.add_argument('--blocks', type=int, default=19)
 parser.add_argument('--model_dir', type=str, default='')
@@ -173,6 +177,64 @@ if not os.path.isfile(model_path):
     print(f'ERROR: checkpoint not found: {model_path}')
     print('Download from Google Drive / Baidu (see trained_models/readme.md)')
     sys.exit(1)
+
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(f'device: {device}')
+print(f'model: {model_path}')
+if opt.max_size > 0:
+    print(f'max_size: {opt.max_size} (long side)')
+
+ckp = torch.load(model_path, map_location=device)
+net = FFA(gps=opt.gps, blocks=opt.blocks)
+if device == 'cuda':
+    net = nn.DataParallel(net)
+net.load_state_dict(ckp['model'])
+net = net.to(device)
+net.eval()
+
+
+def eval_loader(loader, label, save_subdir=''):
+    sub_save = os.path.join(opt.save_dir, save_subdir) if opt.save_dir and save_subdir else opt.save_dir
+    names, psnrs, ssims = run_eval(net, loader, device, save_dir=sub_save)
+    mean_psnr = np.mean(psnrs)
+    mean_ssim = np.mean(ssims)
+    print('-' * 50)
+    print(f'{label}: PSNR = {mean_psnr:.4f}  SSIM = {mean_ssim:.4f}  (n={len(psnrs)})')
+    return mean_psnr, mean_ssim
+
+
+if opt.rrshid:
+    from rrshid_data import (
+        RRSHID_LEVELS, collect_pairs, discover_rrshid, normalize_density,
+    )
+    from torch.utils.data import DataLoader
+
+    data_dir = os.path.abspath(opt.data_dir)
+    density = normalize_density(opt.density)
+    level_map = discover_rrshid(data_dir)
+
+    if density == 'all':
+        targets = [('tn', 'RRSHID-TN/Thin/浅'), ('m', 'RRSHID-M/Moderate/中'), ('tk', 'RRSHID-TK/Thick/浓')]
+    else:
+        targets = [(density, RRSHID_LEVELS[density][2])]
+
+    all_psnr, all_ssim, total_n = [], [], 0
+    for key, label in targets:
+        hazy_dir, clear_dir = level_map[key]
+        pairs = collect_pairs(hazy_dir, clear_dir)
+        loader = DataLoader(
+            PairedDehazeDataset(pairs, max_size=opt.max_size),
+            batch_size=1, shuffle=False,
+        )
+        psnr_v, ssim_v = eval_loader(loader, label, save_subdir=key)
+        all_psnr.extend([psnr_v])
+        all_ssim.extend([ssim_v])
+        total_n += len(pairs)
+
+    if len(targets) > 1:
+        print('=' * 50)
+        print(f'RRSHID Overall (mean of 3 densities): PSNR = {np.mean(all_psnr):.4f}  SSIM = {np.mean(all_ssim):.4f}')
+    sys.exit(0)
 
 if opt.custom:
     if not opt.hazy_dir or not opt.clear_dir:
@@ -207,21 +269,8 @@ else:
 
 loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print(f'device: {device}')
 print(f'dataset: {dataset_label}')
 print(data_info)
-print(f'model: {model_path}')
-if opt.max_size > 0:
-    print(f'max_size: {opt.max_size} (long side)')
-
-ckp = torch.load(model_path, map_location=device)
-net = FFA(gps=opt.gps, blocks=opt.blocks)
-if device == 'cuda':
-    net = nn.DataParallel(net)
-net.load_state_dict(ckp['model'])
-net = net.to(device)
-net.eval()
 
 names, psnrs, ssims = run_eval(net, loader, device, save_dir=opt.save_dir)
 
