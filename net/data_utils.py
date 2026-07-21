@@ -7,10 +7,8 @@ import torch
 import torch.utils.data as data
 import torchvision.transforms as tfs
 from PIL import Image
-from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 from torchvision.transforms import functional as FF
-from torchvision.utils import make_grid
 
 sys.path.append('.')
 sys.path.append('..')
@@ -29,6 +27,8 @@ IMG_EXTS = {'.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp'}
 
 
 def tensorShow(tensors, titles=None):
+    from matplotlib import pyplot as plt
+    from torchvision.utils import make_grid
     fig = plt.figure()
     for tensor, tit, i in zip(tensors, titles, range(len(tensors))):
         img = make_grid(tensor)

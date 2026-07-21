@@ -1,10 +1,6 @@
-# Build with a base image already on your server (no Docker Hub pull needed):
-#   docker images                          # find a local image
-#   docker build --build-arg BASE_IMAGE=<your-local-pytorch-image> -t ffa-nettest:latest .
-#
-# Example if you have nvidia pytorch image locally:
-#   docker build --build-arg BASE_IMAGE=nvcr.io/nvidia/pytorch:23.10-py3 -t ffa-nettest:latest .
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.10-py3
+# Build FFA-Net env on top of your local ssid image (no Docker Hub needed):
+#   docker build --build-arg BASE_IMAGE=ssid:latest -t ffa-net:latest .
+ARG BASE_IMAGE=ssid:latest
 FROM ${BASE_IMAGE}
 
 WORKDIR /workspace/FFA-Nettest
