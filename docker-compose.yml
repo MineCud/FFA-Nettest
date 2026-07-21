@@ -1,3 +1,4 @@
+version: '3'
 services:
   ffa-eval:
     build: .
@@ -5,4 +6,6 @@ services:
     working_dir: /workspace/FFA-Nettest/net
     volumes:
       - /data2/hyz/FFA-Nettest:/workspace/FFA-Nettest
-    gpus: all
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
