@@ -163,9 +163,11 @@ parser.add_argument('--task', type=str, default='ots', choices=['its', 'ots'],
 parser.add_argument('--rrshid', action='store_true',
                     help='Evaluate on RRSHID (reports PSNR per density: TN/M/TK)')
 parser.add_argument('--density', type=str, default='all',
-                    help='RRSHID density: all, tn(浅), m(中), tk(浓)')
-parser.add_argument('--data_dir', type=str, default='/data2/hyz/FFA-Nettest/dataset',
-                    help='Dataset root (SOTS/RRSHID/custom)')
+                    help='Fog level: all, thin/浅, moderate/中, thick/浓')
+parser.add_argument('--split', type=str, default='test', choices=['test', 'val'],
+                    help='Which split to evaluate: test (default) or val')
+parser.add_argument('--data_dir', type=str, default='',
+                    help='Dataset root (default: ../dataset)')
 parser.add_argument('--gps', type=int, default=3)
 parser.add_argument('--blocks', type=int, default=19)
 parser.add_argument('--model_dir', type=str, default='')
@@ -205,35 +207,43 @@ def eval_loader(loader, label, save_subdir=''):
 
 if opt.rrshid:
     from rrshid_data import (
-        RRSHID_LEVELS, collect_pairs, discover_rrshid, normalize_density,
+        FOG_LEVELS, collect_pairs, discover_rrshid, normalize_density, split_dirs,
     )
     from torch.utils.data import DataLoader
 
-    data_dir = os.path.abspath(opt.data_dir)
+    if opt.data_dir:
+        data_dir = os.path.abspath(opt.data_dir)
+    else:
+        data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'dataset'))
+
     density = normalize_density(opt.density)
-    level_map = discover_rrshid(data_dir)
+    discover_rrshid(data_dir)
 
     if density == 'all':
-        targets = [('tn', 'RRSHID-TN/Thin/浅'), ('m', 'RRSHID-M/Moderate/中'), ('tk', 'RRSHID-TK/Thick/浓')]
+        targets = [
+            ('thin', 'thin_fog/Thin/浅'),
+            ('moderate', 'moderate_fog/Moderate/中'),
+            ('thick', 'thick_fog/Thick/浓'),
+        ]
     else:
-        targets = [(density, RRSHID_LEVELS[density][2])]
+        folder, label = FOG_LEVELS[density]
+        targets = [(density, f'{folder}/{label}')]
 
-    all_psnr, all_ssim, total_n = [], [], 0
+    all_psnr, all_ssim = [], []
     for key, label in targets:
-        hazy_dir, clear_dir = level_map[key]
+        hazy_dir, clear_dir = split_dirs(data_dir, key, opt.split)
         pairs = collect_pairs(hazy_dir, clear_dir)
         loader = DataLoader(
             PairedDehazeDataset(pairs, max_size=opt.max_size),
             batch_size=1, shuffle=False,
         )
-        psnr_v, ssim_v = eval_loader(loader, label, save_subdir=key)
-        all_psnr.extend([psnr_v])
-        all_ssim.extend([ssim_v])
-        total_n += len(pairs)
+        psnr_v, ssim_v = eval_loader(loader, f'{label} [{opt.split}]', save_subdir=f'{key}_{opt.split}')
+        all_psnr.append(psnr_v)
+        all_ssim.append(ssim_v)
 
     if len(targets) > 1:
         print('=' * 50)
-        print(f'RRSHID Overall (mean of 3 densities): PSNR = {np.mean(all_psnr):.4f}  SSIM = {np.mean(all_ssim):.4f}')
+        print(f'Overall [{opt.split}] (mean of 3 levels): PSNR = {np.mean(all_psnr):.4f}  SSIM = {np.mean(all_ssim):.4f}')
     sys.exit(0)
 
 if opt.custom:

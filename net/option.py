@@ -9,6 +9,8 @@ from torch import nn
 import torchvision.utils as vutils
 warnings.filterwarnings('ignore')
 
+_DEFAULT_DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'dataset'))
+
 parser=argparse.ArgumentParser()
 parser.add_argument('--steps',type=int,default=100000)
 parser.add_argument('--device',type=str,default='Automatic detection')
@@ -26,14 +28,12 @@ parser.add_argument('--crop',action='store_true')
 parser.add_argument('--crop_size',type=int,default=240,help='Takes effect when using --crop ')
 parser.add_argument('--no_lr_sche',action='store_true',help='no lr cos schedule')
 parser.add_argument('--perloss',action='store_true',help='perceptual loss')
-parser.add_argument('--data_dir',type=str,default='/data2/hyz/FFA-Nettest/dataset',
-                    help='Dataset root for rs_train/rs_test')
+parser.add_argument('--data_dir',type=str,default=_DEFAULT_DATA_DIR,
+                    help='Dataset root (default: ../dataset)')
 parser.add_argument('--pair_mode',type=str,default='same_name',choices=['same_name','sots_id'],
                     help='same_name: hazy/GT same filename; sots_id: 1400_1.png -> 1400.png')
 parser.add_argument('--pretrain',type=str,default='',
                     help='Fine-tune from checkpoint, e.g. ./trained_models/ots_train_ffa_3_19.pk')
-parser.add_argument('--rrshid_val_ratio',type=float,default=0.1,
-                    help='Validation ratio for RRSHID train/val split (default 0.1)')
 
 opt=parser.parse_args()
 opt.device='cuda' if torch.cuda.is_available() else 'cpu'

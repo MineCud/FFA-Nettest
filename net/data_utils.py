@@ -41,7 +41,7 @@ def tensorShow(tensors, titles=None):
 
 def resolve_clear_dir(root):
     """Find clear/GT folder under a split root."""
-    for name in ('clear', 'GT', 'gt'):
+    for name in ('clear', 'GT', 'gt', 'Clear'):
         clear_dir = os.path.join(root, name)
         if os.path.isdir(clear_dir):
             return clear_dir
@@ -232,24 +232,28 @@ try:
     from rrshid_data import build_rrshid_loaders
     _rrshid = build_rrshid_loaders(
         data_dir,
-        val_ratio=opt.rrshid_val_ratio,
         crop_size=opt.crop_size if opt.crop else 240,
         batch_size=BS,
         crop=opt.crop,
     )
     RRSHID_train_loader = _rrshid['rrshid_train']
+    RRSHID_val_loader = _rrshid['rrshid_val']
     RRSHID_test_loader = _rrshid['rrshid_test']
-    RRSHID_tn_test_loader = _rrshid['rrshid_tn_test']
-    RRSHID_m_test_loader = _rrshid['rrshid_m_test']
-    RRSHID_tk_test_loader = _rrshid['rrshid_tk_test']
     RRSHID_tn_train_loader = _rrshid['rrshid_tn_train']
+    RRSHID_tn_val_loader = _rrshid['rrshid_tn_val']
+    RRSHID_tn_test_loader = _rrshid['rrshid_tn_test']
     RRSHID_m_train_loader = _rrshid['rrshid_m_train']
+    RRSHID_m_val_loader = _rrshid['rrshid_m_val']
+    RRSHID_m_test_loader = _rrshid['rrshid_m_test']
     RRSHID_tk_train_loader = _rrshid['rrshid_tk_train']
+    RRSHID_tk_val_loader = _rrshid['rrshid_tk_val']
+    RRSHID_tk_test_loader = _rrshid['rrshid_tk_test']
 except FileNotFoundError as e:
     print(f'[data] RRSHID not found: {e}')
-    RRSHID_train_loader = RRSHID_test_loader = None
-    RRSHID_tn_test_loader = RRSHID_m_test_loader = RRSHID_tk_test_loader = None
-    RRSHID_tn_train_loader = RRSHID_m_train_loader = RRSHID_tk_train_loader = None
+    RRSHID_train_loader = RRSHID_val_loader = RRSHID_test_loader = None
+    RRSHID_tn_train_loader = RRSHID_tn_val_loader = RRSHID_tn_test_loader = None
+    RRSHID_m_train_loader = RRSHID_m_val_loader = RRSHID_m_test_loader = None
+    RRSHID_tk_train_loader = RRSHID_tk_val_loader = RRSHID_tk_test_loader = None
 
 if __name__ == '__main__':
     print('RS train pairs:', len(RS_train_loader.dataset))

@@ -1,4 +1,11 @@
-"""RRSHID dataset helpers (TN/M/TK = thin/moderate/thick haze)."""
+"""RRSHID-style fog dataset: thin_fog / moderate_fog / thick_fog (浅/中/浓).
+
+Expected layout under data_dir:
+  thin_fog/train/hazy + train/{gt|GT|clear}
+  thin_fog/val/hazy   + val/{gt|GT|clear}
+  thin_fog/test/hazy  + test/{gt|GT|clear}
+  (same for moderate_fog, thick_fog)
+"""
 import os
 import random
 
@@ -9,26 +16,42 @@ from torchvision.transforms import functional as FF
 
 IMG_EXTS = {'.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp'}
 
-# density key -> (hazy folder, GT folder, display name)
-RRSHID_LEVELS = {
-    'tn': ('RRSHID-TN', 'RRSHID-TN-GT', 'Thin/浅'),
-    'm': ('RRSHID-M', 'RRSHID-M-GT', 'Moderate/中'),
-    'tk': ('RRSHID-TK', 'RRSHID-TK-GT', 'Thick/浓'),
+# key -> (folder name, display)
+FOG_LEVELS = {
+    'thin': ('thin_fog', 'Thin/浅'),
+    'moderate': ('moderate_fog', 'Moderate/中'),
+    'thick': ('thick_fog', 'Thick/浓'),
+    'tn': ('thin_fog', 'Thin/浅'),
+    'm': ('moderate_fog', 'Moderate/中'),
+    'tk': ('thick_fog', 'Thick/浓'),
 }
 
 DENSITY_ALIASES = {
-    'thin': 'tn', 'light': 'tn', '浅': 'tn', 'tn': 'tn',
-    'moderate': 'm', 'mid': 'm', 'medium': 'm', '中': 'm', 'm': 'm',
-    'thick': 'tk', 'heavy': 'tk', 'dense': 'tk', '浓': 'tk', 'tk': 'tk',
+    'thin': 'thin', 'light': 'thin', '浅': 'thin', 'tn': 'thin',
+    'moderate': 'moderate', 'mid': 'moderate', 'medium': 'moderate',
+    '中': 'moderate', 'm': 'moderate',
+    'thick': 'thick', 'heavy': 'thick', 'dense': 'thick', '浓': 'thick', 'tk': 'thick',
     'all': 'all',
 }
+
+CLEAR_DIR_NAMES = ('clear', 'GT', 'gt', 'Clear')
 
 
 def normalize_density(name):
     key = name.lower().strip()
     if key not in DENSITY_ALIASES:
-        raise ValueError(f'unknown density "{name}", use tn/m/tk/all or 浅/中/浓')
+        raise ValueError(f'unknown density "{name}", use thin/moderate/thick/all or 浅/中/浓')
     return DENSITY_ALIASES[key]
+
+
+def resolve_clear_dir(split_root):
+    for name in CLEAR_DIR_NAMES:
+        path = os.path.join(split_root, name)
+        if os.path.isdir(path):
+            return path
+    raise FileNotFoundError(
+        f'No GT folder under {split_root}. Expected one of: {", ".join(CLEAR_DIR_NAMES)}'
+    )
 
 
 def list_images(folder):
@@ -58,69 +81,44 @@ def collect_pairs(hazy_dir, clear_dir):
     return pairs
 
 
-def _join_if_exists(base, name):
-    path = os.path.join(base, name)
-    return path if os.path.isdir(path) else None
+def split_dirs(data_dir, fog_key, split):
+    """Return (hazy_dir, clear_dir) for one fog level and split."""
+    fog_folder = FOG_LEVELS[fog_key][0]
+    split_root = os.path.join(os.path.abspath(data_dir), fog_folder, split)
+    hazy_dir = os.path.join(split_root, 'hazy')
+    if not os.path.isdir(hazy_dir):
+        raise FileNotFoundError(f'hazy dir not found: {hazy_dir}')
+    clear_dir = resolve_clear_dir(split_root)
+    return hazy_dir, clear_dir
 
 
 def discover_rrshid(data_dir):
-    """
-    Find RRSHID hazy/GT folder pairs under data_dir.
-    Supports official flat layout and survey Restored/Ground-truth layout.
-    Returns: { 'tn': (hazy_dir, clear_dir), 'm': ..., 'tk': ... }
-    """
+    """Verify all 3 fog levels exist. Return dict key -> fog_folder name."""
     data_dir = os.path.abspath(data_dir)
-    search_roots = [
-        (data_dir, data_dir),
-        (os.path.join(data_dir, 'Restored'), os.path.join(data_dir, 'Ground-truth')),
-        (os.path.join(data_dir, 'haze'), os.path.join(data_dir, 'GT')),
-        (os.path.join(data_dir, 'hazy'), os.path.join(data_dir, 'GT')),
-    ]
-
-    for hazy_base, gt_base in search_roots:
-        found = {}
-        for key, (hazy_name, gt_name, _) in RRSHID_LEVELS.items():
-            hazy_dir = _join_if_exists(hazy_base, hazy_name)
-            clear_dir = _join_if_exists(gt_base, gt_name)
-            if hazy_dir and clear_dir:
-                found[key] = (hazy_dir, clear_dir)
-        if len(found) == 3:
-            print(f'[RRSHID] found all 3 densities under {data_dir}')
-            for key, (h, c) in found.items():
-                print(f'  {RRSHID_LEVELS[key][2]}: {h}  <->  {c}')
-            return found
-
-    raise FileNotFoundError(
-        f'RRSHID folders not found under {data_dir}\n'
-        'Expected one of:\n'
-        '  {data_dir}/RRSHID-TN + {data_dir}/RRSHID-TN-GT  (and M/TK)\n'
-        '  {data_dir}/Restored/RRSHID-TN + {data_dir}/Ground-truth/RRSHID-TN-GT\n'
-    )
+    found = {}
+    for key in ('thin', 'moderate', 'thick'):
+        fog_folder = FOG_LEVELS[key][0]
+        fog_path = os.path.join(data_dir, fog_folder)
+        if not os.path.isdir(fog_path):
+            raise FileNotFoundError(f'missing fog folder: {fog_path}')
+        for split in ('train', 'val', 'test'):
+            split_dirs(data_dir, key, split)
+        found[key] = fog_folder
+        print(f'[RRSHID] OK {fog_folder} ({FOG_LEVELS[key][1]})')
+    return found
 
 
-def split_pairs(pairs, val_ratio=0.1, seed=42):
-    pairs = list(pairs)
-    rng = random.Random(seed)
-    rng.shuffle(pairs)
-    n_val = max(1, int(len(pairs) * val_ratio)) if pairs else 0
-    val_pairs = pairs[:n_val]
-    train_pairs = pairs[n_val:]
-    return train_pairs, val_pairs
-
-
-def merge_pairs(level_map, densities=('tn', 'm', 'tk')):
-    all_pairs = []
+def merge_split_pairs(data_dir, split, densities=('thin', 'moderate', 'thick')):
+    pairs = []
     for key in densities:
-        hazy_dir, clear_dir = level_map[key]
-        pairs = collect_pairs(hazy_dir, clear_dir)
-        print(f'[RRSHID] {RRSHID_LEVELS[key][2]}: {len(pairs)} pairs')
-        all_pairs.extend(pairs)
-    return all_pairs
+        hazy_dir, clear_dir = split_dirs(data_dir, key, split)
+        level_pairs = collect_pairs(hazy_dir, clear_dir)
+        print(f'[RRSHID] {FOG_LEVELS[key][1]} {split}: {len(level_pairs)} pairs')
+        pairs.extend(level_pairs)
+    return pairs
 
 
 class PairedFolderDataset(data.Dataset):
-    """Load paired images from two flat folders (RRSHID: 1.png <-> 1.png)."""
-
     def __init__(self, pairs, train, size='whole img'):
         self.pairs = pairs
         self.train = train
@@ -164,37 +162,51 @@ class PairedFolderDataset(data.Dataset):
         return haze, clear
 
 
-def build_rrshid_loaders(data_dir, val_ratio=0.1, crop_size=240, batch_size=16, crop=False):
-    """Build train/val loaders for all densities + per-density test loaders."""
-    level_map = discover_rrshid(data_dir)
-    all_pairs = merge_pairs(level_map)
-    train_pairs, val_pairs = split_pairs(all_pairs, val_ratio=val_ratio)
+def _make_loader(pairs, train, size, batch_size, shuffle):
+    from torch.utils.data import DataLoader
+    return DataLoader(
+        PairedFolderDataset(pairs, train=train, size=size),
+        batch_size=batch_size,
+        shuffle=shuffle,
+    )
 
+
+def build_rrshid_loaders(data_dir, crop_size=240, batch_size=16, crop=False):
+    discover_rrshid(data_dir)
     train_size = crop_size if crop else 'whole img'
 
-    from torch.utils.data import DataLoader
-
-    loaders = {
-        'rrshid_train': DataLoader(
-            PairedFolderDataset(train_pairs, train=True, size=train_size),
-            batch_size=batch_size, shuffle=True,
-        ),
-        'rrshid_test': DataLoader(
-            PairedFolderDataset(val_pairs, train=False, size='whole img'),
-            batch_size=1, shuffle=False,
-        ),
-    }
-
-    for key in ('tn', 'm', 'tk'):
-        pairs = collect_pairs(level_map[key][0], level_map[key][1])
-        loaders[f'rrshid_{key}_test'] = DataLoader(
-            PairedFolderDataset(pairs, train=False, size='whole img'),
-            batch_size=1, shuffle=False,
-        )
-        loaders[f'rrshid_{key}_train'] = DataLoader(
-            PairedFolderDataset(pairs, train=True, size=train_size),
-            batch_size=batch_size, shuffle=True,
+    loaders = {}
+    for split, train_flag, bs, shuffle in (
+        ('train', True, batch_size, True),
+        ('val', False, 1, False),
+        ('test', False, 1, False),
+    ):
+        pairs = merge_split_pairs(data_dir, split)
+        loaders[f'rrshid_{split}'] = _make_loader(
+            pairs, train=train_flag,
+            size=train_size if train_flag else 'whole img',
+            batch_size=bs, shuffle=shuffle,
         )
 
-    print(f'[RRSHID] train={len(train_pairs)} val={len(val_pairs)} (val_ratio={val_ratio})')
+    for key in ('thin', 'moderate', 'thick'):
+        short = {'thin': 'tn', 'moderate': 'm', 'thick': 'tk'}[key]
+        for split, train_flag, bs, shuffle in (
+            ('train', True, batch_size, True),
+            ('val', False, 1, False),
+            ('test', False, 1, False),
+        ):
+            hazy_dir, clear_dir = split_dirs(data_dir, key, split)
+            pairs = collect_pairs(hazy_dir, clear_dir)
+            loader = _make_loader(
+                pairs, train=train_flag,
+                size=train_size if train_flag else 'whole img',
+                batch_size=bs, shuffle=shuffle,
+            )
+            loaders[f'rrshid_{short}_{split}'] = loader
+            loaders[f'rrshid_{key}_{split}'] = loader
+
+    total_train = len(loaders['rrshid_train'].dataset)
+    total_val = len(loaders['rrshid_val'].dataset)
+    total_test = len(loaders['rrshid_test'].dataset)
+    print(f'[RRSHID] total train={total_train} val={total_val} test={total_test}')
     return loaders

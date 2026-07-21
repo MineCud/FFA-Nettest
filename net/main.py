@@ -28,12 +28,16 @@ loaders_={
 	'rs_train':RS_train_loader,
 	'rs_test':RS_test_loader,
 	'rrshid_train':RRSHID_train_loader,
+	'rrshid_val':RRSHID_val_loader,
 	'rrshid_test':RRSHID_test_loader,
 	'rrshid_tn_train':RRSHID_tn_train_loader,
-	'rrshid_m_train':RRSHID_m_train_loader,
-	'rrshid_tk_train':RRSHID_tk_train_loader,
+	'rrshid_tn_val':RRSHID_tn_val_loader,
 	'rrshid_tn_test':RRSHID_tn_test_loader,
+	'rrshid_m_train':RRSHID_m_train_loader,
+	'rrshid_m_val':RRSHID_m_val_loader,
 	'rrshid_m_test':RRSHID_m_test_loader,
+	'rrshid_tk_train':RRSHID_tk_train_loader,
+	'rrshid_tk_val':RRSHID_tk_val_loader,
 	'rrshid_tk_test':RRSHID_tk_test_loader,
 }
 start_time=time.time()
